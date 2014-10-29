@@ -1,0 +1,22 @@
+-- Lisptutor Jr ID: gkhnoisgtht --
+
+-- Hw1 --
+CG-USER(2): (defun points-per-quarter (a b c d)
+  (/ (+ a b c d) 4))
+POINTS-PER-QUARTER
+CG-USER(3): (points-per-quarter 0 0 14 13)
+27/4
+CG-USER(4): (points-per-quarter 9 7 14 13)
+43/4
+CG-USER(5):
+
+-- Extra Credit --
+
+CG-USER(9): (defun points-per-quarter (&rest args)
+  (/ (apply #' + args) (length args)))
+POINTS-PER-QUARTER
+CG-USER(10): (points-per-quarter 0 9 9 0 1 2)
+7/2
+CG-USER(11): (points-per-quarter 0 14 13 7 3 3 0)
+40/7
+CG-USER(12): 

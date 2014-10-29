@@ -1,0 +1,729 @@
+<html>
+
+ <head>
+  <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+  <title>CSC 407: Computer Systems II: 2014 Winter, Assignment #2</title>
+ </head>
+
+ <body>
+  <center>
+  <h2>CSC 407: Computer Systems II: 2014 Winter, Assignment #2</h2>
+  <p>Last Modified 2014 January 29</p>
+  </center>
+
+  <h4>Purpose:</h4>
+   To practice creating processes and signal handling.
+
+  <h4>Computing</h4>
+  <p>
+  Please <a href="">ssh</a> into cdmlinux.cstcis.cti.depaul.edu, or use your own Linux machine.
+  </p>
+
+  <h4>Overview:</h4>
+  <p>
+    An adult (the <em>controller</em>) lets some number of children take turns hitting a pinata.
+    With probability 1/20 (as computed by a <code>pinata</code> process) the pinata will bust, and the winning child get all the candy.
+  </p>
+
+  <p>
+    In this assignment we'll make 3 programs:
+    <ol type="a">
+      <li>
+	A pinata program that waits until it receives <code>SIGUSR1</code>.
+	It will then
+	<ul>
+	  <li>send <code>SIGUSR1</code> with probability 19/20, or</li>
+	  <li>send <code>SIGUSR2</code> with probability 1/20</li>
+	</ul>
+	to the process that signalled it.
+      </li>
+      <li>
+	A child program who hits the pinata.
+	<ul>
+	  <li>It waits for its parent process (the controller) to send it <code>SIGUSR1</code> and tell the child that it is that child's turn.</li>
+	  <li>It then sends <code>SIGUSR1</code> to the pinata-processes.</li>
+	  <li>If it gets back <code>SIGUSR1</code> it knows it failed to break the pinata, and it sends <code>SIGUSR1</code> back to the controller.</li>
+	  <li>However, if it gets back <code>SIGUSR2</code> is knows it did break the pinata, and it sends <code>SIGUSR2</code> back to the controller.</li>
+	</ul>
+      </li>
+      <li>
+	A controller program.
+	<ul>
+	  <li>It asks the user for:
+	    <ul>
+	      <li>the number of pinata-whacking children to make, and</li>
+	      <li>the random number seed</li>
+	    </ul>
+	  </li>
+	  <li>It makes all the processes</li>
+	  <li>It regulates the game, and</li>
+	  <li>It tells the processes to end after the game is finished.</li>
+	</ul>
+      </li>
+    </ol>
+  </p>
+
+
+  <h4>Assignment:</h4>
+   <ol type="1">
+     <li>
+       <h4>pinata.c</h4>
+       <p>
+	 The pinata's job is to wait for a child to whack it and/or to wait to be told to stop:
+	 <ul>
+	   <li>Children whack the pinata by sending it <code>SIGUSR1</code>.</li>
+	   <li>The controller tells the pinata to stop by sending <code>SIGINT</code>.</li>
+	 </ul>
+       </p>
+
+       <p>
+	 Upon receipt of <code>SIGUSR1</code> the pinata sees if it broke:
+	 <ul>
+	   <li>There is a 19/20 chance that the pinata survives, this causes <code>SIGUSR1</code> to be sent back to the sender.</li>
+	   <li>There is a 1/20 chance that the pinata breaks, this causes <code>SIGUSR2</code> to be sent back to the sender.</li>
+	 </ul>
+	 <em>Hint:</em> This code might be useful:
+<pre>
+  int	isBroken	= (rand() % 20) == 19;
+  int	signalToSend	= (isBroken ? SIGUSR2 : SIGUSR1);
+</pre>
+       </p>
+
+       <p>
+	 Upon receipt of <code>SIGINT</code> the program should do:
+<pre>
+  printf(&quot;Pinata stopping\n&quot;);
+  fflush(stdout);
+</pre>
+	 and end.
+       </p>
+
+       <p>
+	 Your <code>pinata</code> program must:
+	 <ol type="A">
+	   <li>
+	     Check that there are 2 arguments total on the command line
+	     (the program's name and 1 other).
+	     If there are not then do:
+<pre>
+fprintf(stderr,&quot;Usage: %s &lt;randNumSeed&gt;\n&quot;,
+	argv[0]
+       );
+exit(EXIT_FAILURE);
+</pre>
+	   </li>
+
+	   <li>
+	     Seed the random number seed generator with the integer in <code>argv[1]</code>.
+	     Use <code>strtol()</code> to translate a string to an integer.
+	     Use <code>srand(int seed)</code> to seed the random generator.
+	   </li>
+
+	   <li>
+	     Install a signal handler for <code>SIGINT</code> that causes the program to end.
+	     This signal handler should <code>printf()</code> a message that the pinata process is ending.
+	   </li>
+
+	   <li>
+	     Install a signal handler for <code>SIGUSR1</code>.
+	     The signal handler should see if the pinata broke by computing <code>(rand() % 20) == 19</code>.
+	     <ul>
+	       <li>If it is <code>true</code> then the pinata did break and <code>SIGUSR2</code> should be sent back to the sender.</li>
+	       <li>If it is <code>false</code> then the pinata survived and <code>SIGUSR1</code> should be sent back to the sender.</li>
+	     </ul>
+	   </li>
+
+	   <li>
+	     While the pinata is waiting to be <code>signal()</code>-ed it should not be doing much of anything.
+	     It should run code like:
+<pre>
+while  (shouldRun)
+  sleep(1);
+</pre>
+	   </li>
+	 </ol>
+       </p>
+
+     </li>
+     <p/>
+ 
+     <li>
+       <h4>child.c</h4>
+       <p>
+	 The child's job is to wait for signal numbered <code>SIGUSR1</code> <em>from its parent</em> (the controller)
+	 This means it is its turn.
+       </p>
+
+       <p>
+	 Then the child sends the signal <code>SIGUSR1</code> to the <code>pinata</code> process.
+       </p>
+
+       <p>
+	 If the child receives <code>SIGUSR1</code> (from the pinata) that means it did <strong>not</strong> bust the pinata.
+	 It <code>printf()</code>-s a message of disappointment, and sends <code>SIGUSR1</code> to its parent say that it has not yet won.
+       </p>
+
+       <p>
+	 If the child receives <code>SIGUSR2</code> (from the pinata) that means it <strong>did</strong> bust the pinata.
+	 It <code>printf()</code>-s a boastful message, and sends <code>SIGUSR2</code> to its parent say that it has won.
+       </p>
+
+       <p>
+	 Your <code>child</code> program must:
+	 <ol type="A">
+	   <li>
+	     Check that there are 3 arguments total on the command line
+	     (the program's name and 2 others).
+	     If there are not then do:
+<pre>
+fprintf(stderr,&quot;Usage: %s &lt;pinataPid&gt; &lt;childNum&gt;\n&quot;,
+	argv[0]
+       );
+exit(EXIT_FAILURE);
+</pre>
+	   </li>
+
+	   <li>
+	     Install a signal handler for signal <code>SIGINT</code> to be told when to quit.
+	     This signal handler should <code>printf()</code> a message that the child process is ending and actually stop the program.
+	   </li>
+
+	   <li>
+	     Install a signal handler for signal <code>SIGUSR1</code>.
+	     <ul>
+	       <li>If this signal comes from its parent then it should <code>printf()</code> a message that acknowledges that it is its turn and it should send <code>SIGUSR1</code> to the pinata.</li>
+	       <li>If this signal comes from the pinata process then it should <code>printf()</code> a message of disappointment and send signal <code>SIGUSR1</code> to its parent (the controller).</li>
+	     </ul>
+	   </li>
+
+	   <li>
+	     Install signal handlers for signal <code>SIGUSR2</code>.
+	     This handler should <code>printf()</code> a boastful message and send signal <code>SIGUSR2</code> to its parent (the controller).
+	   </li>
+
+	   <li>
+	     While the child is waiting to be <code>signal()</code>-ed it should not be doing much of anything.
+	     It should run code like:
+<pre>
+while  (shouldRun)
+  sleep(1);
+</pre>
+	   </li>
+	 </ol>
+     </li>
+     <p/>
+
+     <li>
+       <h4>controller.c</h4>
+       <p>
+	 The controller's job is to ask for the number of children, ask for a random number seed, launch the pinata process, launch the desired number of children, and then regulate the game.
+       </p>
+
+       <p>
+	 After one of the children has reported that it has won then it should send <code>SIGINT</code> to the pinata and all children processes.
+	 It should also reap them with <code>waitpid()</code>.
+       </p>
+
+
+       <p>
+	 Your <code>child</code> program must:
+	 <ol type="A">
+	   <li>
+	     In a loop get a valid number for <code>numChildren</code> (greater than 0).
+	   </li>
+
+	   <li>
+	     In a loop get a valid number for <code>randomNumberSeed</code> (between 0 and 32767)
+	   </li>
+
+	   <li>
+	     Install a <code>SIGCHLD</code> signal handler.
+	     This handler should have a <code>while</code> loop that does a non-hanging <code>waitpid()</code> that detects whether or not a child process (including pinata process) has ended.
+	     If it has it should print that process's PID and whether or not it ended successfully or crashed.
+	   </li>
+
+	   <li>
+	     Install <code>SIGUSR1</code> signal handler <code>turnOver()</code>.
+	     This function tells the controller that the current child has finished its turn, but that the game has not yet finished.
+	   </li>
+
+	   <li>
+	     Install <code>SIGUSR2</code> signal handler <code>turnOverStopGame()</code>.
+	     This function tells the controller both that the current child has finished its turn <em>and</em> that the game has finished.
+	   </li>
+
+	   <li>
+	     Have a loop that regulates which child's turn it is.
+	     The loop sends <code>SIGUSR1</code> to the current child.
+	   </li>
+
+	   <li>
+	     After the above loop, have code that sends <code>SIGINT</code> to all child processes (including the pinata process)
+	   </li>
+
+	 </ol>
+       </p>
+
+     </li>
+     <p/>
+
+     <p>
+       I have written much of the controller program for you.
+       All you have to do is fill in the <em>juicy</em> bits.
+     </p>
+
+     <p>
+       <h4>controller.c</h4>
+<pre>
+/*--------------------------------------------------------------------------*
+ *----									----*
+ *----		controller.c						----*
+ *----									----*
+ *----	    This program controls version 2.0 of the pinata-whacking	----*
+ *----	simulator.							----*
+ *----									----*
+ *----	----	----	----	----	----	----	----	----	----*
+ *----									----*
+ *----	Version 2.0		2014 January 27		Joseph Phillips	----*
+ *----									----*
+ *--------------------------------------------------------------------------*/
+
+/*----*
+ *----*		Common include sequence:
+ *----*/
+#include	&lt;stdlib.h&gt;
+#include	&lt;stdio.h&gt;
+#include	&lt;sys/types.h&gt;
+#include	&lt;signal.h&gt;
+#include	&lt;string.h&gt;
+#include	&lt;unistd.h&gt;
+
+
+/*----*
+ *----*		Declaration of constants:
+ *----*/
+#define		LINE_LEN		16
+#define		PINATA_PROG_NAME	&quot;pinata&quot;
+#define		CHILD_PROG_NAME		&quot;child&quot;
+
+
+/*----*
+ *----*		Definition of global vars:
+ *----*/
+int		shouldRun		= 1;
+int		isWaitingForTurn;
+pid_t*		childPidArray;
+pid_t		pinataPid;
+
+
+/*----*
+ *----*		Definition of global fncs:
+ *----*/
+
+/*  PURPOSE:  To change the global state so that the program knows both that
+ *	the current child process has finished its turn, and that it the game
+ *	is over (that child won).  Ignores parameters.  No return value.
+ */
+void	turnOverStopGame
+		(int		sig,
+		 siginfo_t*	info,
+		 void*		data
+		)
+{
+  shouldRun		= 0;
+  isWaitingForTurn	= 0;
+}
+
+
+/*  PURPOSE:  To change the global state so that the program knows that the
+ *	current child process has finished its turn, but that it the game is
+ *	not yet over (that child lost).  Ignores parameters.  No return value.
+ */
+void	turnOver(int		sig,
+		 siginfo_t*	info,
+		 void*		data
+		)
+{
+  isWaitingForTurn	= 0;
+}
+
+
+/*  PURPOSE:  To reap all child processes that have already finished.  Ignores
+ *	parameters.  No return value.
+ */
+void	child	(int		sig,
+		 siginfo_t*	info,
+		 void*		data
+		)
+{
+  int	status;
+  pid_t	finishedId;
+
+  <strong>// YOUR CODE HERE</strong>
+}
+
+
+
+/*  PURPOSE:  To simulate the pinata-whacking game.  Ignores command line
+ *	parameters.  Returns EXIT_SUCCESS to OS on success or EXIT_FAILURE
+ *	otherwise.
+ */
+int	main	()
+{
+  //  I.  Application validity check:
+
+  //  II.  Do simulation:
+  //  II.A.  Get simulation parameters:
+  int		numChildren;
+  int		randomNumberSeed;
+  char		line[LINE_LEN];
+
+  //  II.A.1.  Get 'numChildren' (must be greater than or equal to 1):
+  <strong>// YOUR CODE HERE</strong>
+
+
+  //  II.A.2.  Get 'randomNumberSeed' (from 0-32767):
+  <strong>// YOUR CODE HERE</strong>
+
+
+  //  II.B.  Prepare game:
+  //  II.B.1.  Initialize 'childPidArray':
+  childPidArray	      = (pid_t*)calloc(numChildren,sizeof(pid_t));
+
+  //  II.B.2.  Install signal handlers:
+  struct sigaction sa;
+
+  <strong>// YOUR CODE HERE</strong>
+
+  //  II.C.  Launch child processes:
+  //  II.C.1.  Launch pinata process:
+  pinataPid = <strong>/* REPLACE THIS ZERO -> */ 0</strong>;
+
+  if  (pinataPid == -1)
+  {
+    fprintf(stderr,&quot;Your OS is being fork()-bombed! :(\n&quot;);
+    exit(EXIT_FAILURE);
+  }
+
+  if  (pinataPid == 0)
+  {
+    snprintf(line,LINE_LEN,&quot;%d&quot;,randomNumberSeed);
+    <strong>// YOUR CODE HERE TO LAUNCH PINATA_PROG_NAME WITH 'line' AS THE 1ST ARGUMENT</strong>
+    fprintf(stderr,&quot;Could not find program %s! :(\n&quot;,PINATA_PROG_NAME);
+    exit(EXIT_FAILURE);
+  }
+
+  //  II.C.2.  Launch pinata-whacking child process(es):
+  int	i;
+
+  for  (i = 0;  i &lt; numChildren;  i++)
+  {
+    childPidArray[i] = <strong>/* REPLACE THIS ZERO -> */ 0</strong>;
+
+    if  (childPidArray[i] == -1)
+    {
+      fprintf(stderr,&quot;Your OS is being fork()-bombed! :(\n&quot;);
+      exit(EXIT_FAILURE);
+    }
+
+    if  (childPidArray[i] == 0)
+    {
+      char	numText[LINE_LEN];
+
+      snprintf(line,LINE_LEN,&quot;%d&quot;,pinataPid);
+      snprintf(numText,LINE_LEN,&quot;%d&quot;,i);
+      <strong>// YOUR CODE HERE TO LAUNCH CHILD_PROG_NAME WITH 'line' AS THE FIRST ARG AND 'numText' AS THE 2ND ARG</strong>
+      fprintf(stderr,&quot;Could not find program %s! :(\n&quot;,CHILD_PROG_NAME);
+      exit(EXIT_FAILURE);
+    }
+
+  }
+
+  //  II.D.  Play game:
+  //  II.D.1.  Wait a sec' for all child processes to compose themselves:
+  sleep(1);
+
+  //  II.D.2.  Each iteration tells does one turn of one pinata-whacking
+  //  	       child process:
+  int	currentChild	= 0;
+
+  while  (1)
+  {
+    printf(&quot;Child %d's turn:\n&quot;,currentChild);
+    isWaitingForTurn = 1;
+    <strong>// YOUR CODE HERE TO SEND 'SIGUSR1' TO 'childPidArray[currentChild]'</strong>
+
+    while  (isWaitingForTurn)
+      sleep(3);
+
+    if  ( !shouldRun )
+      break;
+
+    currentChild++;
+
+    if  (currentChild &gt;= numChildren)
+      currentChild = 0;
+  }
+
+  printf(&quot;Child %d won!\n&quot;,currentChild);
+
+  //  II.E.  Clean up after game:
+  //  II.E.1.  Tell all processes to end themselves:
+  for  (currentChild = 0;  currentChild &lt; numChildren;  currentChild++)
+  {
+    <strong>// YOUR CODE HERE TO SEND 'SIGINT' TO 'childPidArray[currentChild]'</strong>
+    sleep(1);
+  }
+
+  <strong>// YOUR CODE HERE TO SEND 'SIGINT' TO 'pinataPid'</strong>
+  sleep(1);
+
+  //  II.E.2.  Clean up memory:
+  free(childPidArray);
+
+  //  III.  Finished:
+  return(EXIT_SUCCESS);
+}
+</pre>
+     </p>
+
+   </ol>
+   <p>
+     <h4>Communication protocol example:</h4>
+<pre>
+controller
+    |
+    |                                      pinata
+    +--(fork/execl)------------------------&gt;&gt;+ (controller makes the pinata)
+    |                                        |  
+    |                        child1          |
+    +--(fork/execl)----------&gt;&gt;+             | (controller makes child1)
+    |                          |             |
+    |              child2      |             |
+    +--(fork/execl)&gt;&gt;+         |             | (controller makes child2)
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    +--(SIGUSR1)-----|-------&gt;&gt;+             | Control to Child1: &quot;Your turn&quot;
+    |                |         |             |
+    |                |         +-(SIGUSR1)-&gt;&gt;+ Child1 to Pinata: &quot;Whack!&quot;
+    |                |         |             |
+    |                |         +-&lt;&lt;(SIGUSR1)-+ Pinata to Child1: &quot;I survived&quot;
+    |                |         |             |
+    +&lt;&lt;(SIGUSR1)-----|---------+             | Child1 to Control: &quot;Not yet&quot;
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    +--(SIGUSR1)---&gt;&gt;+         |             | Control to Child2: &quot;Your turn&quot;
+    |                |         |             |
+    |                +---------|-(SIGUSR1)-&gt;&gt;+ Child2 to Pinata: &quot;Whack!&quot;
+    |                |         |             |
+    |                +---------|-&lt;&lt;(SIGUSR1)-+ Pinata to Child1: &quot;I survived&quot;
+    |                |         |             |
+    +&lt;&lt;(SIGUSR1)-----+         |             | Child1 to Control: &quot;Not yet&quot;
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    +--(SIGUSR1)-----|-------&gt;&gt;+             | Control to Child1: &quot;Your turn&quot;
+    |                |         |             |
+    |                |         +-(SIGUSR1)-&gt;&gt;+ Child1 to Pinata: &quot;Whack!&quot;
+    |                |         |             |
+    |                |         +-&lt;&lt;(SIGUSR1)-+ Pinata to Child1: &quot;I survived&quot;
+    |                |         |             |
+    +&lt;&lt;(SIGUSR1)-----|---------+             | Child1 to Control: &quot;Not yet&quot;
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    +--(SIGUSR1)---&gt;&gt;+         |             | Control to Child2: &quot;Your turn&quot;
+    |                |         |             |
+    |                +---------|-(SIGUSR1)-&gt;&gt;+ Child2 to Pinata: &quot;Whack!&quot;
+    |                |         |             |
+    |                +---------|-&lt;&lt;(SIGUSR2)-+ Pinata to Child1: &quot;You broke me!&quot;
+    |                |         |             |
+    +&lt;&lt;(SIGUSR2)-----+         |             | Child1 to Control: &quot;I won!&quot;
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    |                |         |             |
+    +--(SIGINT)------|---------|-----------&gt;&gt;+ Control to Pinata &quot;Time to stop&quot;
+    |                |         |             |
+    |                |         |       (process ends)
+    |                |         |
+    +--(SIGINT)------|-------&gt;&gt;+               Control to Child1 &quot;Time to stop&quot;
+    |                |         |
+    |                |    (process ends)
+    |                |
+    +--(SIGINT)----&gt;&gt;+                         Control to Child2 &quot;Time to stop&quot;
+    |                |
+    |          (process ends)
+    |
+(process ends)
+</pre>
+   </p>
+
+   <p>
+     <h4>Sample output:</h4>
+<pre>
+[instructor@JoesLaptopFedora16 Assign2]$ <strong>./controller </strong>
+Number of children? <strong>3</strong>
+Random number seed? <strong>3</strong>
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Curses!  I think I just weakened it for the next child!
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Curses!  I think I just weakened it for the next child!
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Curses!  I think I just weakened it for the next child!
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: A swing and a miss!
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: A swing and a miss!
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: A swing and a miss!
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Curses!  I think I just weakened it for the next child!
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Curses!  I think I just weakened it for the next child!
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Curses!  I think I just weakened it for the next child!
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Oh yeah!  All that candy is MINE baby!
+Child 1 won!
+Child 0 stopping
+2997 has finished.
+Child 1 stopping
+2998 has finished.
+Child 2 stopping
+2999 has finished.
+Pinata stopping
+2996 has finished.
+[instructor@JoesLaptopFedora16 Assign2]$ <strong>./controller </strong>
+Number of children? <strong>4</strong>
+Random number seed? <strong>4</strong>
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Curses!  I think I just weakened it for the next child!
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Curses!  I think I just weakened it for the next child!
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Curses!  I think I just weakened it for the next child!
+Child 3's turn:
+Child 3: I'm going to whack at it!
+Child 3: Curses!  I think I just weakened it for the next child!
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: A swing and a miss!
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: A swing and a miss!
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: A swing and a miss!
+Child 3's turn:
+Child 3: I'm going to whack at it!
+Child 3: A swing and a miss!
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 3's turn:
+Child 3: I'm going to whack at it!
+Child 3: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Curses!  I think I just weakened it for the next child!
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Curses!  I think I just weakened it for the next child!
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Curses!  I think I just weakened it for the next child!
+Child 3's turn:
+Child 3: I'm going to whack at it!
+Child 3: Curses!  I think I just weakened it for the next child!
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 3's turn:
+Child 3: I'm going to whack at it!
+Child 3: Hey I hit it!  What's that thing made of?  Kevlar?
+Child 0's turn:
+Child 0: I'm going to whack at it!
+Child 0: Curses!  I think I just weakened it for the next child!
+Child 1's turn:
+Child 1: I'm going to whack at it!
+Child 1: Curses!  I think I just weakened it for the next child!
+Child 2's turn:
+Child 2: I'm going to whack at it!
+Child 2: Curses!  I think I just weakened it for the next child!
+Child 3's turn:
+Child 3: I'm going to whack at it!
+Oh yeah!  All that candy is MINE baby!
+Child 3 won!
+Child 0 stopping
+3351 has finished.
+Child 1 stopping
+3352 has finished.
+Child 2 stopping
+3353 has finished.
+Child 3 stopping
+3354 has finished.
+Pinata stopping
+3350 has finished.
+</pre>
+   </p>
+ </body>
+</html>

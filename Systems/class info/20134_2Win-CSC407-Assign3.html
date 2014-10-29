@@ -1,0 +1,663 @@
+<html>
+ <head>
+  <title>CSC 407 2014 Winter -- Assignment 3</title>
+  <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+ </head>
+
+ <body>
+  <center>
+   <h2>CSC 407 2014 Winter -- Assignment 3</h2>
+   Last modified 2014 Feb 16
+  </center>
+
+  <p>
+    <h3>Assignment #3's specific objective:</h3>
+    To go over:
+    <ul>
+      <li><h4>threads</h4>
+      <li><h4>good memory programming practice</h4>
+    </ul>
+  </p>
+
+  <ol type="1">
+    <li><h4>Threads (70 Points)</h4>
+      <p>
+        I apologize.
+	This program is <em>still</em> a bit buggy: it ends, but you may not see what you type afterwards.
+	If this happens, enter: <em>stty sane</em>, even if you cannot see it.
+      </p>
+
+      <p>
+	<ol type="a">
+	  <li>Please download <code>massTransit.zip</code> from COL</li>
+	  <li>Please upload it to your friend Linux system</li>
+	  <li>Please unzip it with <code>unzip massTransit.zip</code></li>
+	  <li>After coding, compile it with:
+<pre>
+$ <em>g++ -c main.cpp</em>
+$ <em>g++ -c TrainLocation.cpp</em>
+$ <em>g++ -c Station.cpp</em>
+$ <em>g++ -c Track.cpp</em>
+$ <em>g++ -o massTransit main.o TrainLocation.o Station.o Track.o -lpthread -lncurses</em>
+</pre>
+	  </li>
+	</oL>
+      </p>
+
+      <p>
+	<h4>Scenario:</h4>
+	A major metropolitan area has an extensive, but aging, mass transit system.
+	It has a two lines: the <em>Redline</em> and the <em>Brownline</em>, both of which cross a river.
+	The <em>Redline</em> crosses by tunnel, and the <em>Brownline</em> crosses by bridge.
+      </p>
+
+      <p>
+	Unfortunately, the Brownline bridge has to be taken out of service for maintenance.
+	No matter: we can re-route brownline trains thru the redline tunnel.
+      </p>
+
+      <p>
+	Be safe now!
+	Only one train at a time is allowed on any one track: otherwise <strong>CRASH!</strong>
+      </p>
+
+      <p>
+	How do we simulate individual trains that can move independently?
+	<em>With threads!</em>
+	Each thread will run the following function.
+<pre>
+//  PURPOSE:  To be the function that a pthread instance runs to simulate
+//	the train '*(Train*)vPtr'.  Return 'vPtr'.
+void*	simulateTrain	(void*	vPtr)
+{
+  //  I.  Applicability validity check:
+  if  (vPtr == NULL)
+    return(NULL);
+
+  //  II.  Simulate Train:
+  //  II.A.  Get ptr to 'Train' instance:
+  Train*	trainPtr	= (Train*)vPtr;
+
+  //  II.B.  Continue to simulate until MassTransit system signals to stop:
+  while  ( trainPtr-&gt;getMassTransit().getShouldContinue() )
+  {
+    //  II.B.1.  Pause:
+    usleep((rand() % 1000) * 10000);
+
+    //  II.B.2.  Quit if shouldn't continue:
+    if  ( !trainPtr-&gt;getMassTransit().getShouldContinue() )
+      break;
+
+    //  II.B.3.  Attempt to leave current location to arrive at next:
+    if  ( trainPtr-&gt;getLocPtr()-&gt;canLeave(trainPtr) )
+    {
+      TrainLocation*	currentPtr	= trainPtr-&gt;getLocPtr();
+      TrainLocation*	nextPtr		= currentPtr-&gt;nextLocPtr(trainPtr);
+
+      currentPtr-&gt;leave(trainPtr);
+      nextPtr-&gt;arrive(trainPtr);
+      trainPtr-&gt;getMassTransit().update();
+    }
+
+  }
+
+  if  (trainPtr-&gt;getLocPtr() != NULL)
+    trainPtr-&gt;getLocPtr()-&gt;leave(trainPtr);
+
+  //  III.  Finished:
+  return((void*)trainPtr);
+}
+</pre>
+	<em>NOTE:</em> There is no signal checking in this function.
+	So, if the trains are not careful, they could <strong>crash</strong> if they both are on the same track at the same time.<br/>
+	How do we ensure that only <strong>one</strong> train is allowed on a track at a time?
+	<em>With pthread mutexes and conditions</em>
+      </p>
+
+      <p>
+        Please finish the <strong>mass transit simulator</strong>.
+	It is written in C++ and has five classes.
+	<ul>
+	  <li>
+	    <code>TrainLocation</code>, the superclass for both <code>Station</code> and <code>Track</code>.
+<pre>
+		                +-------------------------------------------------------+
+		                |			TrainLocation			|
+		                +-------------------------------------------------------+
+				| nameCPtr:				char*		|
+				| trainPtrQueue:			list of Train*	|
+				| <strong>SOME KIND OF LOCK:</strong>			<strong>????</strong>		|
+				+-------------------------------------------------------+
+				| TrainLocation(char* newNameCPtr)			|
+				| <em>~TrainLocation()</em>					|
+				| getNameCPtr():			const char*	|
+				| getNumTrains():			int		|
+				| getLockPtr():				<strong>????</strong>		|
+		                | enqueue(Train* trainPtr):		void		|
+		                | dequeue(Train* trainPtr):		void		|
+				| isFirstTrain(const Train* trainPtr):	bool		|
+				| print ():	     	    		void		|
+				| <em>canLeave (Train* trainPtr):		bool</em>		|
+				| <em>nextLocPtr (Train* trainPtr):		TrainLocation*</em>	|
+				| <em>arrive (Train* trainPtr):		void</em>		|
+				| <em>leave (Train* trainPtr):		void</em>		|
+				+-------------------------------------------------------+
+							^
+							|
+				+-----------------------+-------------------------------+
+				|							|
++-------------------------+-----------------------------+	+-----------------------+-------------------------------+
+|			Track				|	|			Station				|
++-------------------------------------------------------+	+-------------------------------------------------------+
+| termini[]:				Station*	|	| trackArray[][]:				Track*	|
+| trainPtrQueue:			list of Train*	|	+-------------------------------------------------------+
+| <strong>SOME KIND OF SOMETHING:</strong>		<strong>????</strong>		|	| Station(const char* newNamePtr)			|
++-------------------------------------------------------+	| ~Station()						|
+| Track(const char*,Station*,Station*)			|	| getTrackPtr(line_t line,direction_t dir):	Track*	|
+| ~Track()						|	| setTrackPtr(line_t line,direction_t dir,Track*): void	|
+| getTerminus(direction_t dir):		Station&amp;	|	| canLeave (Train* trainPtr):		bool		|
+| nextLocPtr (Train* trainPtr):		TrainLocation*	|	| nextLocPtr (Train* trainPtr):		TrainLocation*	|
+| arrive (Train* trainPtr):		void		|	| arrive (Train* trainPtr):		void		|
+| leave (Train* trainPtr):		void		|	| leave (Train* trainPtr):		void		|
++-------------------------------------------------------+	+-------------------------------------------------------+
+</pre>
+
+	  </li>
+	  <p/>
+	  <li>
+	    <code>Train</code>: which naturally represents individual trains, and
+<pre>
++---------------------------------------------------------------+
+|				Train				|
++---------------------------------------------------------------+
+| identity:					int		|
+| line:						line_t		|
+| direction:					direction_t	|
+| locPtr:					TrainLocation*	|
+| massTransit:					MassTransit&amp;	|
++---------------------------------------------------------------+
+| Train (int,line_t,direction_t,TrainLocation*,MassTransit&amp;)	|
+| ~Train ()							|
+| getIdentity ():				int		|
+| getLine () :					line_t		|
+| getDirection () :				direction_t	|
+| getLocPtr () :  				TrainLocation*	|
+| getMassTransit () :				MassTransit&amp;	|
+| switchDirection () :				void		|
+| setLocPtr (TrainLocation* ptr) :		void		|
+| print () :		    	 		void		|
++---------------------------------------------------------------+
+</pre>
+	  </li>
+	  <p/>
+	  <li>
+	    <code>MassTransit</code>: which represents the network of <code>Station</code> and <code>Track</code> instances, and has the <code>Train</code> instances that run on them.
+<pre>
++---------------------------------------------------------------+
+|			MassTransit				|
++---------------------------------------------------------------+
+| (a bunch of Station instances):		Station		|
+| (a bunch of Track instances):			Track		|
+| shouldContinue:				bool		|
+| <strong>THREADS FOR TRAINS:</strong>				<strong>????</strong>		|
+| <strong>LOCK FOR print() METHOD:</strong>			<strong>????</strong>		|
++---------------------------------------------------------------+
+| MassTransit ()						|
+| ~MassTransit ()						|
+| getShouldContinue ():				bool		|
+| print () :		    	 		void		|
+| simulate () :					void		|
++---------------------------------------------------------------+
+</pre>
+	  </li>
+	</ul>
+      </p>
+
+      <p>
+	Here's what needs to be done:
+	<ol type="a">
+	  <li>
+	    Right now the program prints a map of the transit system.
+	    The trains stay put for 60 seconds.
+	    Then the program crashes.<br/>
+	    You need to revise <code>MassTransit</code>'s constructor to create pthreads for each <code>Train</code> instance, and revise its destructor to have the main thread wait for them.<br/>
+	    The loop that waits for the threads should receive the <code>Train*</code> values back from <code>void* simulateTrain(void* )</code> so it can <code>delete()</code> the <code>Train*</code> pointers.<br/>
+	    Add a member variable that is an array of <code>NUM_TRAINS</code> pthreads to <code>MassTransit.h</code> and use it in both the constructor and destructor.
+	    <p/>
+	  </li>
+
+	  <li>
+	    After doing <strong>a.</strong> your Train's will move, but they will crash into each other.
+	    The screen may also look all messed up as two threads attempt to write to the screen at the same time.
+	    Three classes needs mutexes to make the program thread-safe: <code>MassTransit</code>, <code>Station</code> and <code>Track</code>.
+	    <p/>
+	    <code>MassTransit</code> needs a mutex for its <code>print()</code> method.
+	    Add one in its member variable section.
+	    Initialize it in the constructor, destroy it in the destructor, lock it at the beginning of <code>print()</code>, and unlock it on the way out of <code>print()</code>.
+	    <p/>
+	    Both <code>Station</code> and <code>Track</code> need mutexes, so it is cleanest to add the mutex to their common base class <code>TrainLocation</code>.
+	    Create it in <code>TrainLocation</code>'s constructor, destroy it in <code>TrainLocation</code>'s destructor, and revise the accessor <code>getLockPtr()</code> to return a pointer to it.
+	    <p/>
+	    <code>Station</code>'s use of the mutex is straight-forward.
+	    It's queue of pointers to <code>Train</code> instances has to be protected from multiple <code>Train</code> threads trying to simultaneously access it.
+	    Thus, please lock the mutex on the way in and unlock on the way out in both <code>Station::arrive()</code> and <code>Station::leave()</code> of <code>Station.cpp</code>.
+	    <p/>
+	    <code>Track</code>'s use of the mutex is a little more sophisticated.
+	    A <code>Track</code> instance remains locked while a <code>Train</code> instance is still on it.
+	    Therefore lock it at the beginning of <code>Track::arrive()</code> and unlock it at the end of <code>Track::leave()</code>.
+	    <p/>
+	  </li>
+
+	  <li>
+	    Because only one <code>Train</code> at a time can use a <code>Track</code>, <code>Track</code> (but not <code>Station</code>) will have a backlog of <code>Train</code> instances waiting to get on.
+	    When a <code>Train</code> leaves a <code>Track</code> it needs a way to signal another waiting <code>Train</code> that it may use the <code>Track</code>.
+	    Thus, <code>Track</code> (but not <code>Station</code>) will also need a mutex condition <em>in addition to</em> the mutex.
+	    <p/>
+	    Add a mutex condition to <code>Track</code>'s member variables.
+	    Initialize it in the constructor.
+	    Destroy it in the destructor.
+	    Use it in both <code>Track::arrive()</code> and <code>Track::leave()</code>.
+	    Where should you do the <code>pthread_cond_wait()</code>?
+	    Where should you do the <code>pthread_cond_signal()</code>?
+	  </li>
+	</ol>
+      </p>
+    </li>
+    <p/>
+
+    <li><h4>C String usage! (30 Points)</h4>
+      Finish the program below by:
+      <ol type="a">
+	<li>
+	  Finishing the function <code>getDescription()</code>
+	  <p>
+	    It should return a string allocated from memory on the <strong>heap</strong> that contains stylized formatting of the filename with given name 'filename' and extension 'extension'.
+	    The stylized string has the first 'filenameWidth' characters of 'filename' (left justified) followed by a single space character, followed by the first 'extensionWidth' characters of 'extension' (left justified), followed by the '\0' character.
+	  </p>
+
+	  <p>
+	    For example, assume 'filenameWidth' == 8 and 'extensionWidth' == 3:
+	    <table border="2">
+	      <tr>
+		<th>'filename'</th>
+		<th>'extension'</th>
+		<th>Returned string</th>
+	      </tr>
+
+	      <tr>
+		<td>&quot;filename&quot;</td>
+		<td>&quot;txt&quot;</td>
+		<td>&quot;filename txt&quot;</td>
+	      </tr>
+
+	      <tr>
+		<td>&quot;longFileName&quot;</td>
+		<td>&quot;text&quot;</td>
+		<td>&quot;longFile tex&quot;</td>
+	      </tr>
+
+	      <tr>
+		<td>&quot;short&quot;</td>
+		<td>&quot;t&quot;</td>
+		<td>&quot;short    t  &quot;</td>
+	      </tr>
+
+	      <tr>
+		<td>&quot;MyClass&quot;</td>
+		<td>&quot;h&quot;</td>
+		<td>&quot;MyClass  h  &quot;</td>
+	      </tr>
+
+	      <tr>
+		<td>&quot;MyClass&quot;</td>
+		<td>&quot;cpp&quot;</td>
+		<td>&quot;MyClass  cpp&quot;</td>
+	      </tr>
+
+	      <tr>
+		<td>&quot;MyClass&quot;</td>
+		<td>&quot;cpp~&quot;</td>
+		<td>&quot;MyClass  cpp&quot;</td>
+	      </tr>
+	    </table>
+	  </p>
+	</li>
+	<li>
+	  Revising the loop in <code>main()</code> to release the heap memory that it obtains from <code>getDescription()</code>
+	</li>
+      </ol>
+      <p/>
+
+      <p>
+<pre>
+/*--*
+ *--*		File inclusions:
+ *--*/
+#include	&lt;stdlib.h&gt;
+#include	&lt;stdio.h&gt;
+#include	&lt;string.h&gt;
+
+
+/*--*
+ *--*		Constant definitions:
+ *--*/
+//  PURPOSE:  To tell the character that separates the main name from the file
+//	extension in a filename.
+#define		EXTENSION_CHAR	'.'
+
+//  PURPOSE:  To tell the maximum length (or width) of strings.
+#define		MAX_LINE	64
+
+//  PURPOSE:  To tell the number of fields to print.
+#define		NUM_FIELDS	2
+
+//  PURPOSE:  To tell the minimum width of any field.
+#define		MIN_FIELD_WIDTH	3
+
+//  PURPOSE:  To tell the maximum width of any field.
+#define		MAX_FIELD_WIDTH	(MAX_LINE - (NUM_FIELDS-1)*MIN_FIELD_WIDTH)
+
+
+/*--*
+ *--*		Function definitions:
+ *--*/
+
+//  PURPOSE:  To return '0' if 'width' is not a legal field width or
+//	a non-'0' integer if it is.
+int	isLegalFieldWidth	(int	    width
+				)
+{
+  //  I.  Application validity check:
+
+  //  II.  Return value:
+  return( (width &gt;= MIN_FIELD_WIDTH) &amp;&amp; (width &lt;= MAX_FIELD_WIDTH) );
+}
+
+
+//  PURPOSE:  To have the user enter the width of the field named 'fieldName'
+//	and to return the legal entry.
+int	askFieldWidth		(const char*	fieldName
+				)
+{
+  //  I.  Application validity check:
+
+  //  II.  Ask field width:
+  //  II.A.  Each iteration tries to get a valid field width:
+  char	line[MAX_LINE];
+  int	toReturn;
+  char*	cPtr;
+
+  do
+  {
+    printf(&quot;Please enter the width of the %s width (%d-%d): &quot;,
+	   fieldName,MIN_FIELD_WIDTH,MAX_FIELD_WIDTH
+	  );
+    fgets(line,MAX_LINE,stdin);
+    toReturn = strtol(line,&amp;cPtr,10);
+  }
+  while  ( (cPtr == line)  ||  !isLegalFieldWidth(toReturn) );
+
+  //  III.  Finished:
+  return(toReturn);
+}
+
+
+//  PURPOSE:  To obtain the widths of both the filename and extension fields
+//	from either the command line, or by asking the user.  'argc' tells
+//	the number of items that were on the command line, 'argv[]' is an
+//	array of pointers to the individual arguments.  'filenameWidthPtr'
+//	points to the integer that tells the width of the given filename
+//	field.  'extWidthPtr' points to the integer that tells the width of
+//	the extension field.  No return value.
+void	obtainFieldWidths	(int		argc,
+				 char*		argv[],
+				 int*		filenameWidthPtr,
+				 int*		extWidthPtr
+				)
+{
+  //  I.  Application validity check:
+
+  //  II.  Obtain field widths:
+  //  II.A.  Set '*filenameWidthPtr' and '*extWidthPtr' to initially illegal
+  //  	     values to force checking them in II.C.:
+  *filenameWidthPtr	= MAX_LINE;
+  *extWidthPtr		= MAX_LINE;
+
+  //  II.B.  Attempt to gain field widths from command line ('argv[]'):
+  if  ( (argc &lt; 2)							||
+	!isLegalFieldWidth(*filenameWidthPtr = strtol(argv[1],NULL,10))
+      )
+    *filenameWidthPtr = askFieldWidth(&quot;filename&quot;);
+
+  if  ( (argc &lt; 3)							||
+	!isLegalFieldWidth(*extWidthPtr = strtol(argv[2],NULL,10))
+      )
+    *extWidthPtr = askFieldWidth(&quot;extension&quot;);
+
+  //  II.C.  Each iteration asks the user for the field widths and then checks
+  //	     that they are legal:
+  while  ( (*filenameWidthPtr + *extWidthPtr) &gt; MAX_LINE )
+  {
+    printf(&quot;The combined width must be less than or equal to %d.\n&quot;,MAX_LINE);
+    *filenameWidthPtr	 = askFieldWidth(&quot;filename&quot;);
+    *extWidthPtr	 = askFieldWidth(&quot;extension&quot;);
+  }
+
+  //  III. Finished:
+}
+
+
+//  PURPOSE:  To ask the user for a filename (given name and extension), and
+//	to write the first 'filenameWidth'-1 characters of it into 'filename'.
+//	No return value.
+void	obtainFilename		(char*		filename,
+				 int		filenameWidth
+				)
+{
+  //  I.  Application validity check:
+
+  //  II.  Ask for and get file name:
+  //  II.A.  Ask for and get file name:
+  printf(&quot;Filename (or blank line to quit): &quot;);
+  fgets(filename,filenameWidth,stdin);
+
+  //  II.B.  Remove ending '\n' from 'filename' (if present):
+  char* cPtr = strchr(filename,'\n');
+
+  if  (cPtr != NULL)
+    *cPtr = '\0';
+
+  //  III.  Finished:
+}
+
+
+//  PURPOSE:  To return '0' if 'cPtr' points to an empty string, or non-'0'
+//	otherwise.
+int	isBlank			(const char*	cPtr
+				)
+{
+  //  I.  Application validity check:
+
+  //  II.  Fast-forward past space chars:
+  while ( isspace(*cPtr) )
+    cPtr++;
+
+  //  III.  Return value:
+  return(*cPtr == '\0');
+}
+
+
+//  PURPOSE:  To tokenize the whole filename 'wholeFilename' into the given
+//	filename (the first 'filenameWidth'-1 chars of which are to be written
+//	into the space pointed to by 'filename'), and the extension (the first
+//	'extensionWidth'-1 chars of which are to be written into the space
+//	pointed to by 'extension').  No return value.
+void	tokenizeFilename	(const char*	wholeFilename,
+				 char* 		filename,
+				 int		filenameWidth,
+				 char*		extension,
+				 int		extensionWidth
+				)
+{
+  //  I.  Application validity check:
+
+  //  II.  Tokenize 'wholeFilename':
+  //  II.A.  Blank both strings:
+  filename[0]	= '\0';
+  extension[0]	= '\0';
+
+  //  II.B.  Fast-forward past any spaces:
+  //  II.B.1.  Each iteration fast-forwards past one space char:
+  int	sourceInd;
+
+  for  (sourceInd = 0;  isspace(wholeFilename[sourceInd]);  sourceInd++);
+
+  //  II.B.2.  If have exhausted chars in 'wholeFilename[]' then end:
+  if  (wholeFilename[sourceInd] == '\0')
+    return;
+
+  //  II.C.  Write the given filename portion into 'filename':
+  //  II.C.1.  Each iteration copies on more char from 'wholeFilename[]' to
+  //	       'filename[]':
+  int	destInd;
+
+  for  (destInd = 0;  destInd &lt; filenameWidth-1;  sourceInd++, destInd++)
+  {
+    if  ( (wholeFilename[sourceInd] == '\0')	||
+	  (wholeFilename[sourceInd] == EXTENSION_CHAR)
+	)
+      break;
+
+    filename[destInd]	= wholeFilename[sourceInd];
+  }
+
+  //  II.C.2.  End 'filename[]' string:
+  filename[destInd]	= '\0';
+
+  //  II.C.3.  Finished if at end of 'wholeFilename[]':
+  if  (wholeFilename[sourceInd] == '\0')
+    return;
+
+  //  II.D.  Write the extension portion into 'extension':
+  //  II.D.1.  Each iteration copies on more char from 'wholeFilename[]' to
+  //	       'extension[]':
+  for  ( destInd = 0, // Reset 'destInd' (to beginning of 'extension[]')
+	 sourceInd++; // Pass 'EXTENSION_CHAR'
+	destInd &lt; extensionWidth;
+	 sourceInd++, destInd++
+       )
+  {
+    if  (wholeFilename[sourceInd] == '\0')
+      break;
+
+    extension[destInd]	= wholeFilename[sourceInd];
+  }
+
+  //  II.D.2.  End 'filename[]' string:
+  extension[destInd]	= '\0';
+
+  //  III.  Finished:
+}
+
+
+//  PURPOSE:  To return a string allocated from memory on the HEAP that
+//	contains stylized formatting of the filename with given name
+//	'filename' and extension 'extension'.  The stylized string has
+//	the first 'filenameWidth' characters of 'filename' (left justified)
+//	followed by a single space character, followed by the first
+//	'extensionWidth' characters of 'extension' (left justified), followed
+//	by the '\0' character.
+//
+//	For example, assume 'filenameWidth' == 8 and 'extensionWidth' == 3:
+//	'filename'	'extension'	Returned string:
+//	----------	-----------	----------------
+//	&quot;filename&quot;	&quot;txt&quot;		&quot;filename txt&quot;
+//	&quot;longFileName&quot;	&quot;text&quot;		&quot;longFile tex&quot;
+//	&quot;short&quot;		&quot;t&quot;		&quot;short    t  &quot;
+//	&quot;MyClass&quot;	&quot;h&quot;		&quot;MyClass  h  &quot;
+//	&quot;MyClass&quot;	&quot;cpp&quot;		&quot;MyClass  cpp&quot;
+//	&quot;MyClass&quot;	&quot;cpp~&quot;		&quot;MyClass  cpp&quot;
+char*	getDescription		(const char*	filename,
+				 int   		filenameWidth,
+				 const char*	extension,
+				 int   		extensionWidth
+				)
+{
+  //  I.  Application validity check:
+
+  //  II.  Construct heap string:
+  //  <strong>YOUR CODE HERE TO IMPLEMENT THE FUNCTION</strong>
+
+  //  III.  Finished:
+  return(toReturn);
+}
+
+
+//  PURPOSE:  To obtain field widths, and then for each entered filename, to
+//	print it out in a stylized fashion which conforms to the field widths.
+//	'argc' tells the number of command-line arguments and 'argv[]' points
+//	to each individual command line argument.  Returns 'EXIT_SUCCESS' to
+//	OS.
+int	main	(int	argc,
+		 char*	argv[]
+		)
+{
+  //  I.  Application validity check:
+
+  //  II.  Do program:
+  //  II.A.  Get field widths:
+  int	filenameWidth;
+  int	typeWidth;
+
+  obtainFieldWidths(argc,argv,&amp;filenameWidth,&amp;typeWidth);
+
+  //  II.B.  Each iteration obtains a filename and prints it out in
+  //	     a stylized fashion:
+  while  (1)
+  {
+    char	wholeFilename[MAX_LINE];
+    char	filename[MAX_LINE];
+    char	extension[MAX_LINE];
+
+    obtainFilename(wholeFilename,MAX_LINE);
+
+    if  ( isBlank(wholeFilename) )
+      break;
+
+    tokenizeFilename(wholeFilename,filename,MAX_LINE,extension,MAX_LINE);
+    char* cPtr = getDescription(filename,filenameWidth,extension,typeWidth);
+
+    printf(&quot;\&quot;%s\&quot;\n&quot;,cPtr);
+    //  <strong>YOUR CODE HERE TO RELEASE MEMORY OBTAINED ABOVE</strong>
+  }
+
+  //  III.  Finished:
+  return(EXIT_SUCCESS);
+}
+</pre>
+      </p>
+
+      <p>
+	<h4>Example:</h4>
+<pre>
+[instructor@JoesLaptopFedora16 Memory]$ <strong>./filenameDescriber 8 3</strong>
+Filename (or blank line to quit): <strong>filename.txt</strong>
+&quot;filename txt&quot;
+Filename (or blank line to quit): <strong>longFileName.text</strong>
+&quot;longFile tex&quot;
+Filename (or blank line to quit): <strong>short.t</strong>
+&quot;short    t  &quot;
+Filename (or blank line to quit): <strong>MyClass.cpp</strong>
+&quot;MyClass  cpp&quot;
+Filename (or blank line to quit): <strong>MyClass.cpp~</strong>
+&quot;MyClass  cpp&quot;
+Filename (or blank line to quit): <strong>MyClass.h</strong>
+&quot;MyClass  h  &quot;
+Filename (or blank line to quit):  
+[instructor@JoesLaptopFedora16 Memory]$ 
+</pre>
+      </p>
+  </ol>
+
+ </body>
+</html>

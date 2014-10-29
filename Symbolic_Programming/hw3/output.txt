@@ -1,0 +1,51 @@
+-- LispTutor Jr: gkhnoisgtht --
+
+-- Factors --
+CL-USER> (factors 31)
+NIL
+CL-USER> (factors 32)
+(2 4 8 16)
+CL-USER> (factors 33)
+(3 11)
+CL-USER> (factors 40)
+(2 4 5 8 10 20)
+CL-USER> (factors 331658)
+(2 165829)
+
+-- primep --
+CL-USER> (primep 31)
+T
+CL-USER> (primep 40)
+NIL
+CL-USER> (primep 2)
+T
+CL-USER> (primep 5)
+T
+CL-USER> (primep 8)
+NIL
+
+-- binary search --
+CL-USER> (defvar prime-tree '(4 (2 1 3)(6 5 7)))
+PRIME-TREE
+CL-USER> (defvar prime-tree '(4 (2 1 3)(6 5 7)))
+PRIME-TREE
+CL-USER> (binary-search 3 prime-tree)
+T
+CL-USER> (binary-search 12 prime-tree)
+NIL
+CL-USER> (trace binary-search)
+NIL
+CL-USER> (binary-search 12 prime-tree)
+0> Calling (binary-search 12 (4 (2 1 3) (6 5 7))) 
+<0 binary-search returned NIL
+NIL
+CL-USER> (binary-search 3 prime-tree)
+0> Calling (binary-search 3 (4 (2 1 3) (6 5 7))) 
+<0 binary-search returned T
+T
+CL-USER> (defvar boy-name-tree '(Hank (David (Bob Alan Chalie)(Frank Ethan Gerald))(Luke (Jake Iago Karl)(Neil Mark Oliver))))
+BOY-NAME-TREE
+CL-USER> (binary-search 'Neil boy-name-tree)
+0> Calling (binary-search NEIL (HANK (DAVID (BOB ALAN CHALIE) (FRANK ETHAN GERALD)) (LUKE (JAKE IAGO KARL) (NEIL MARK OLIVER)))) 
+<0 binary-search returned T
+T

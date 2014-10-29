@@ -1,0 +1,629 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+ 
+  <title>CSC 407: Computer Systems II: 2014 Winter, Assignment #1 Solution</title>
+ </head><body>
+  <center>
+  <h2>CSC 407: Computer Systems II: 2014 Winter, Assignment #1 Solution</h2>
+  <p>Last Modified 2014 January 29</p>
+  </center>
+
+  <h4>Purpose:</h4>
+  To go over issues related to how the <em>compiler</em> and the <em>linker</em>
+  serve <strong>you,</strong> the programmer.
+
+  <h3>Computing</h3>
+  <p>
+  Please <a href="">ssh</a> into ctilinux1.cstcis.cti.depaul.edu, or use your own Linux machine.
+  </p>
+
+  <ol type="1">
+  <li><h4>Compiler optimization (45 Points)</h4>
+    Consider the following program.
+<pre>/* <strong>q1.c</strong>
+ */
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+
+#define	 unsigned int		uint
+
+#define	 LENGTH			((uint) 1024*64)
+
+int	 initializeArray	(uint		len,
+	 			 int*		intArray
+	 			)
+{
+  uint	i;
+
+  for  (i = 0;  i &lt; len;  i++)
+    intArray[i] = (rand() % 64);
+}
+
+
+
+uint	countAdjacent	(int		index,
+			 int*		intArray,
+			 int		direction
+			)
+{
+  uint	i;
+  uint	sum	= 0;
+
+  for  (i = 0;  i &lt; index;  i++)
+    if  ( intArray[i] == (intArray[i+1] + direction) )
+      sum++;
+
+  return(sum);
+}
+
+
+
+uint	funkyFunction		(uint		len,
+				 int*		intArray
+				)
+{
+  uint	i;
+  uint	sum	= 0;
+
+  for  (i = 0;  i &lt; len-1;  i++)
+    if  ( (i % 16) == 0x4 )
+      sum += 4*countAdjacent(len-2,intArray,+1);
+    else
+      sum += 5*countAdjacent(len-2,intArray,-1);
+
+  return(sum);
+}
+
+
+int	main	()
+{
+  int*		intArray	= (int*)calloc(LENGTH,sizeof(int));
+
+  initializeArray(LENGTH,intArray);
+  printf(&quot;funkyFunction() == %d\n&quot;,funkyFunction(LENGTH,intArray));
+  free(intArray);
+  return(EXIT_SUCCESS);
+}
+</pre>
+
+    <ol type="A">
+      <li>(8 Points) Compile it for profiling but with <strong>no</strong> extra optimization with:
+<pre>$ <strong>gcc -o q1None -pg q1.c</strong> # Compiles q1.c to write q1None to make profile info
+$ <strong>./q1None</strong>               # Runs q1None
+$ <strong>gprof q1None</strong>           # Gives profile info on q1None
+</pre>
+          <p>
+	    <strong>Be sure to scroll all the way to the top of <code>gprof</code> output!</strong><br/>
+            What are the number of <em>self seconds</em> taken by:
+	    <table border="1">
+	      <tbody>
+		<tr><td>Function</td><td>Self seconds</td></tr>
+		<tr><td>initializeBigArray()</td> <td><strong>0.00</strong></td></tr>
+		<tr><td>countAdjacent()</td> <td><strong>25.30</strong></td></tr>
+		<tr><td>funkyFunction()</td> <td><strong>0.00</strong></td></tr>
+	      </tbody>
+	    </table>
+	  </p>
+
+      </li>
+
+      <li>
+	(8 Points)
+	How did it do the operation <code>(i % 16) == 0x4</code>?
+	<strong>Was it done as a modulus (the same as an expensive division, but returns the remainder instead of the quotient) <em>or</em> something else?
+	Show the assembly language for this C code</strong>
+	using gdb to dissassemble
+	<code>funkyFunction()</code> of <code>q1None</code>.
+
+	<p>
+	  <strong>Hint:</strong> do:
+<pre>$ <strong>gdb q1None</strong>
+. . .
+(gdb) <strong>disass funkyFunction</strong>
+Dump of assembler code for function funkyFunction:
+   . . .
+</pre>
+	  and then look for the code that sets up the calls to <code>countAdjacent()</code>.
+	  The <code>(i % 16) == 0x4</code> test is done before either <code>countAdjacent()</code> call.
+	</p>
+
+	<strong>
+	  <p>
+<pre>
+0x08048625 &lt;+25&gt;:	jmp    0x8048684 &lt;funkyFunction+120&gt;
+0x08048627 &lt;+27&gt;:	mov    -0x4(%ebp),%eax
+0x0804862a &lt;+30&gt;:	and    $0xf,%eax
+0x0804862d &lt;+33&gt;:	cmp    $0x4,%eax
+</pre>
+	    The <code>jmp</code> jumps to the test of the loop.
+	    If that test succeeds then it jumps back to <code>0x08048627</code>, which does the if-condition.
+            The <code>mov</code> gets variable <code>i</code> into <code>%eax</code>.
+            The bitwise <code>and $0xf,%eax</code> does the <code>(i % 16)</code>.
+            Bitwise <code>and</code> is considerably cheaper than integer division.
+	  </p>
+	</strong>
+      </li>
+
+      <li>(8 Points) Compile it for profiling but <strong>with</strong> optimization with:
+<pre>$ <strong>gcc -o q1Compiler -O1 -pg q1.c</strong> # Compiles q1.c to write q1Compiler to make profile info
+$ <strong>./q1Compiler</strong>                   # Runs q1Compiler
+$ <strong>gprof q1Compiler</strong>               # Gives profile info on q1Compiler
+</pre>
+          <p>
+          What are the number of <em>self seconds</em> taken by:
+	  <table border="1">
+	    <tbody>
+	      <tr><td>Function</td><td>Self seconds</td></tr>
+	      <tr><td>initializeBigArray()</td> <td><strong>0.00</strong></td></tr>
+	      <tr><td>countAdjacent()</td> <td><strong>7.75</strong></td></tr>
+	      <tr><td>funkyFunction()</td> <td><strong>0.00</strong></td></tr>
+	    </tbody>
+	  </table>
+	  </p>
+
+      </li>
+
+      <li>(8 Points) Use gdb to dissassemble <code>countAdjacent()</code> of both <code>q1None</code> and <code>q1Compiler</code>.
+	<p>
+	  <em>Don't try to understand all the code but in general</em> how did the optimizer make <code>q1Compiler</code>'s <code>countAdjacent()</code> faster than <code>q1None</code>'s?
+	    Give a specific example by comparing both assembly codes.
+	</p>
+
+	<strong>
+	  <p>
+	    <code>q1Node</code>'s <code>countAdjacent()</code> uses that stack in the traditional way to load and save local variables.
+	    For example, it starts out with:
+<pre>
+0x080485bc &lt;+0&gt;:	push   %ebp
+0x080485bd &lt;+1&gt;:	mov    %esp,%ebp
+0x080485bf &lt;+3&gt;:	sub    $0x10,%esp
+0x080485c2 &lt;+6&gt;:	call   0x8048430 &lt;mcount@plt&gt;
+0x080485c7 &lt;+11&gt;:	movl   $0x0,-0x8(%ebp)  <em>sum = 0 (on the stack)</em>
+0x080485ce &lt;+18&gt;:	movl   $0x0,-0x4(%ebp)  <em>i = 0 (on the stack)</em>
+</pre>
+	  </p>
+	  <p>
+	    <code>q1Compiler</code>'s <code>countAdjacent()</code>, however, loads values into registers to avoid using the stack when possible.
+	    It starts out with:
+<pre>
+0x080485b7 &lt;+0&gt;:	push   %ebp
+0x080485b8 &lt;+1&gt;:	mov    %esp,%ebp
+0x080485ba &lt;+3&gt;:	push   %edi
+0x080485bb &lt;+4&gt;:	push   %esi
+0x080485bc &lt;+5&gt;:	push   %ebx
+0x080485bd &lt;+6&gt;:	sub    $0x4,%esp
+0x080485c0 &lt;+9&gt;:	call   0x8048430 &lt;mcount@plt&gt;
+0x080485c5 &lt;+14&gt;:	mov    0xc(%ebp),%ecx
+0x080485c8 &lt;+17&gt;:	mov    0x10(%ebp),%edi
+0x080485cb &lt;+20&gt;:	mov    0x8(%ebp),%eax
+0x080485ce &lt;+23&gt;:	mov    %eax,-0x10(%ebp)
+0x080485d1 &lt;+26&gt;:	mov    $0x0,%eax  <em>sum = 0 (in a register)</em>
+0x080485d6 &lt;+31&gt;:	mov    $0x0,%edx  <em>i = 0 (in a register)</em>
+</pre>
+	    Accessing registers is considerably faster than access the stack, even when it is in the cache.
+	  </p>
+	</strong>
+
+      </li>
+
+      <li>(8 Points) One optimization the compiler may not have made would be do the two <code>countAdjacent()</code> calls once each before the loop in <code>funkyFunction()</code>, put them in variables, and then use those variables in the loop.
+	  Re-write the code this way:
+<pre>  . . .
+  uint	i;
+  uint	sum	= 0;
+  uint  countUp = 4*countAdjacent(len-2,intArray,+1);
+  uint  countDn = 5*countAdjacent(len-2,intArray,-1);
+
+
+  for  (i = 0;  i < len-1;  i++)
+    if  ( (i % 16) == 0x4 )
+      sum += countUp;
+    else
+      sum += countDn;
+</pre>
+
+          <p>
+	    Compile it for profiling again with optimization with:
+</p><pre>$ <strong>gcc -o q1Programmer -O1 -pg q1.c</strong> # Compiles q1.c to write q1Programmer to make profile info
+$ <strong>./q1Programmer</strong>                   # Runs q1Programmer
+$ <strong>gprof q1Programmer</strong>               # Gives profile info on q1Programmer
+</pre>
+          </p>
+
+          <p>
+          What are the number of <em>self seconds</em> taken by:
+	  <table border="1">
+	    <tbody>
+	      <tr><td>Function</td><td>Self seconds</td></tr>
+	      <tr><td>initializeBigArray()</td> <td><strong>0.00</strong></td></tr>
+	      <tr><td>countAdjacent()</td> <td><strong>0.00</strong></td></tr>
+	      <tr><td>funkyFunction()</td> <td><strong>0.00</strong></td></tr>
+	    </tbody>
+	  </table>
+	  </p>
+      </li>
+
+      <li>(5 Points) Which optimizations ought to be done by the <em>compiler</em>?<br>
+	  Which optimizations ought to be done by the <em>programmer</em>?
+	<strong>
+	  <p>
+	    The <em>compiler</em> ought to do those optimizations that do not change the algorithm and that, if made by the programmer, might reduce how easy it is to understand the algorithm.
+	    <em>Reduction-in-strength</em> optimizations are good examples of these.
+	  </p>
+
+	  <p>
+	    The <em>programmer</em> ought to do those optimizations that change the algorithm.
+	  </p>
+	</strong>
+      </li>
+    </ol>
+
+   <p/>
+
+  </li>
+
+  <li><h4>Linker operation (55 Points total)</h4>
+      The program file <code>p1.c</code> below compiles under Linux to create an object file <code>p1.o</code>.
+      It is to be linked with another file <code>p2.o</code> to create a running program, <code>whole</code>.
+
+<pre>/* <strong>p1.c</strong>
+ */
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+
+
+//
+//	Declarations go here:
+//
+
+//  PURPOSE:  To hold the length of the array pointed to by 'intArray'.
+extern int	length;
+
+
+//  PURPOSE:  To hold the array of integers.
+extern int*	intArray;
+
+
+//  PURPOSE:  To hold the maximum value that may place in array 'intArray'.
+extern int	maxRandVal;
+
+
+//  PURPOSE:  To:
+//  	(1) have user enter 'length' (by calling 'enterValue()'),
+//	(2) have user enter 'maxRandVal' (by calling 'enterValue()'), 
+//	(3) define 'intArray' (say 'intArray =(int*)calloc(length,sizeof(int))')
+//	(4) fill 'intArray' with random numbers between 0-'maxRandVal'
+//	    (use expression '(rand() % (maxRandVal+1))')
+//	No parameters.  No return value.
+extern void	createArray	();
+
+
+//  PURPOSE:  To print the values in 'intArray[]'.  No parameters.  No return
+//	value.
+extern void	printArray	();
+
+
+//  PURPOSE:  To free 'intArray'.  No parameters.  No return value.
+extern void	freeArray	();
+
+
+//
+//	Function and variables go here:
+//
+
+//  PURPOSE:  To hold the minimum value for 'length'.
+int	minArrayLen	= 1;
+
+
+//  PURPOSE:  To hold the maximum value for 'length'.
+int	maxArrayLen	= 256;
+
+
+//  PURPOSE:  To hold the maximum value for 'maxRandVal'.
+int	maxMaxRandVal	= 256;
+
+
+//  PURPOSE:  To hold the length of C-string 'line'.
+#define	MAX_LINE	256
+
+
+//  PURPOSE:  To hold the a C-string.
+char	line[MAX_LINE];
+
+
+//  PURPOSE:  To have the user enter the variable pointed to by 'valuePtr',
+//	which must be between 'min' and 'max', and which is described by
+//	'*descriptionPtr'.  No parameters.  No return value.
+void	enterValue	(const char*	descriptionPtr,
+			 int   		min,
+			 int		max,
+			 int*		valuePtr
+			)
+{
+
+  do
+  {
+    printf(&quot;Please enter the %s (%d-%d): &quot;,descriptionPtr,min,max);
+    fgets(line,MAX_LINE,stdin);
+    *valuePtr = strtol(line,NULL,10);
+  }
+  while  ( (*valuePtr &lt; min) || (*valuePtr &gt; max) );
+
+}
+
+
+//  PURPOSE:  To define the array, print an array, and free the array.  No
+//	Ignores parameters.  Returns 'EXIT_SUCCESS' to OS.
+int	main		()
+{
+  createArray();
+  printArray();
+  freeArray();
+  return(EXIT_SUCCESS);
+}</pre>
+
+    <p/>
+    <h5>Sample output:</h5>
+<pre>[instructor@JoesLaptopFedora16 Assign1]$ <strong>gcc -c p1.c</strong>
+[instructor@JoesLaptopFedora16 Assign1]$ <strong>gcc -c p2.c</strong>
+[instructor@JoesLaptopFedora16 Assign1]$ <strong>gcc -o whole p1.o p2.o</strong>
+[instructor@JoesLaptopFedora16 Assign1]$ <strong>./whole</strong>
+Please enter the array's length (1-256): <strong>0</strong>
+Please enter the array's length (1-256): <strong>257</strong>
+Please enter the array's length (1-256): <strong>16</strong>
+Please enter the maximum random value (1-256): <strong>0</strong>
+Please enter the maximum random value (1-256): <strong>257</strong>
+Please enter the maximum random value (1-256): <strong>4</strong>
+The array is:
+intArray[0] = 3
+intArray[1] = 1
+intArray[2] = 2
+intArray[3] = 0
+intArray[4] = 3
+intArray[5] = 0
+intArray[6] = 1
+intArray[7] = 2
+intArray[8] = 4
+intArray[9] = 1
+intArray[10] = 2
+intArray[11] = 2
+intArray[12] = 0
+intArray[13] = 4
+intArray[14] = 3
+intArray[15] = 1
+[instructor@JoesLaptopFedora16 Assign1]$ 
+</pre>
+    <p/>
+
+    <ol type="A">
+    <li>(30 Points) Write a program file <code>p2.c</code> that would compile to <code>p2.o</code>, and would link with <code>p1.o</code> to create a legal running program <code>whole</code>.
+
+      <p>
+	<strong>Important:</strong> <em>Include your <code>p2.c</code> with your submission!</em>
+      </p>
+
+      <p>
+	<strong>HINTS</strong>:
+      </p>
+
+      <ul>
+	<li>What does <code>p1.c</code> need that it does not define?</li>
+	<li>Be sure to <code>extern</code> any necessary functions with the same parameters as they are declared.</li>
+	<li>
+	  What does <code>p1.c</code> define that <code>p2.c</code> would need?<br/>
+	  Be sure to <code>extern</code> both such variable and function symbols.
+	</li>
+	<li>Create the individual object files and the complete executable with:
+<pre>linux&gt; <em>gcc -c p1.c</em>             # creates <strong>p1.o</strong>
+linux&gt; <em>gcc -c p2.c</em>             # creates <strong>p2.o</strong>
+linux&gt; <em>gcc p1.o p2.o -o whole</em>  # creates <strong>whole</strong>
+linux&gt; <em>./whole</em>                 # runs <strong>whole</strong>
+</pre>
+        </li>
+      </ul>
+      <p/>
+
+      <strong>
+	<p>
+<pre>
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+
+//
+//	Declarations go here:
+//
+
+//  PURPOSE:  To hold the minimum value for 'length'.
+extern	int	minArrayLen;
+
+
+//  PURPOSE:  To hold the maximum value for 'length'.
+extern	int	maxArrayLen;
+
+
+//  PURPOSE:  To hold the maximum value for 'maxRandVal'.
+extern	int	maxMaxRandVal;
+
+
+//  PURPOSE:  To have the user enter the variable pointed to by 'valuePtr',
+//	which must be between 'min' and 'max', and which is described by
+//	'*descriptionPtr'.  No parameters.  No return value.
+extern	void	enterValue	(const char*	descriptionPtr,
+				 int   		min,
+				 int		max,
+				 int*		valuePtr
+				);
+
+
+//  PURPOSE:  To hold the length of the array pointed to by 'intArray'.
+int	length;
+
+
+//  PURPOSE:  To hold the array of integers.
+int*	intArray;
+
+
+//  PURPOSE:  To hold the maximum value that may place in array 'intArray'.
+int	maxRandVal;
+
+
+//  PURPOSE:  To:
+//  	(1) have user enter 'length' (by calling 'enterValue()'),
+//	(2) have user enter 'maxRandVal' (by calling 'enterValue()'), 
+//	(3) define 'intArray' (say 'intArray =(int*)calloc(length,sizeof(int))')
+//	(4) fill 'intArray' with random numbers between 0-'maxRandVal'
+//	    (use expression '(rand() % (maxRandVal+1))')
+//	No parameters.  No return value.
+void	createArray	()
+{
+  enterValue(&quot;array length&quot;,minArrayLen,maxArrayLen,&amp;length);
+  enterValue(&quot;random value&quot;,1,maxMaxRandVal,&amp;maxRandVal);
+  intArray =(int*)calloc(length,sizeof(int));
+
+  int i;
+
+  for  (i = 0; i &lt; length;  i++)
+    intArray[i] = (rand() % (maxRandVal+1));
+}
+
+
+//  PURPOSE:  To print the values in 'intArray[]'.  No parameters.  No return
+//	value.
+void	printArray	()
+{
+  int	i;
+
+  for (i = 0;  i &lt; length;  i++)
+    printf(&quot;%d\n&quot;,intArray[i]);
+}
+
+//  PURPOSE:  To free 'intArray'.  No parameters.  No return value.
+void	freeArray	()
+{
+  free(intArray);
+}
+
+
+//
+//	Function and variables go here:
+//
+
+//  PURPOSE:  To hold the length of C-string 'line'.
+#define	MAX_LINE	256
+
+
+//  PURPOSE:  To hold the a C-string.
+char	line[MAX_LINE];
+</pre>
+	</p>
+      </strong>
+    </li>
+
+    <li>(5 Points) Use <code>objdump</code> (<em>not</em> gdb!) to disassemble both <code>main()</code> and <code>createArray()</code> in <code>whole</code>.
+        Find the <code>call</code> to <code>createArray()</code> in <code>main()</code>.
+        Show the math of how the number in that <code>call</code> instruction is used to compute the address where <code>createArray()</code> actually is.
+      <strong>
+	<p>
+<pre>
+08048551 &lt;main&gt;:
+ 8048551:	55                   	push   %ebp
+ 8048552:	89 e5                	mov    %esp,%ebp
+ 8048554:	83 e4 f0             	and    $0xfffffff0,%esp
+ 8048557:	e8 <em>14 00 00 00</em>       	call   8048570 &lt;createArray&gt;
+<em> 804855c</em>:	e8 c0 00 00 00       	call   8048621 &lt;printArray&gt;
+ 8048561:	e8 fa 00 00 00       	call   8048660 &lt;freeArray&gt;
+ 8048566:	b8 00 00 00 00       	mov    $0x0,%eax
+ 804856b:	c9                   	leave  
+ 804856c:	c3                   	ret    
+ 804856d:	90                   	nop
+ 804856e:	90                   	nop
+ 804856f:	90                   	nop
+<em>08048570</em> &lt;createArray&gt;:
+                                            1
+(address of next instruction)      0x0804,855c
++   (value in call statement)   +  0x0000,0014
+-----------------------------   --------------
+     (address to which to go)      0x0804,8570
+</pre>
+	</p>
+	<p>
+	</p>
+      </strong>
+    </li>
+
+    <li>(5 Points) Which segment (that is: <code>.text</code>, <code>.rodata</code>, <code>.data</code> or <code>.bss</code>) of <code>p1.o</code> has string constant
+        used in <code>enterValue()</code>'s <code>printf()</code> call?<br>
+        Show this with <code>objdump</code>.
+      <strong>
+	<p>
+	  The <em>.rodata</em>:
+<pre>
+$ <em>objdump -s -j .rodata p1.o</em>
+
+p1.o:     file format elf32-i386
+
+Contents of section .rodata:
+ 0000 506c6561 73652065 6e746572 20746865  Please enter the
+ 0010 20257320 2825642d 2564293a 2000       %s (%d-%d): .  
+</pre>
+	</p>
+      </strong>
+    </li>
+
+    <li>(5 Points) Can you find the memory for <code>enterValue()'s</code> variable <code>min</code> using <code>objdump</code>?<br>
+        If you can, use <code>objdump</code> to show where it is.<br>
+        If you can't, tell why not.
+
+      <strong>
+	<p>
+	  Variable <code>min</code> is a parameter.
+	  Parameters live on the stack.
+	  The stack only exists when the program is executing as a process, so it does not exist in this executable file.
+	</p>
+      </strong>
+    </li>
+    <li>(5 Points) Which segment of <code>p2.o</code> has the function <code>freeArray()</code>?<br>
+        Show this with <code>objdump</code>.
+      <strong>
+	<p>
+	  The <em>.rodata</em>:
+<pre>
+$ <em>objdump -d -j .text p2.o</em>
+
+p2.o:     file format elf32-i386
+
+Disassembly of section .text:
+. . .
+000000f0 &lt;freeArray&gt;:
+  f0:	55                   	push   %ebp
+  f1:	89 e5                	mov    %esp,%ebp
+  f3:	83 ec 18             	sub    $0x18,%esp
+  f6:	a1 00 00 00 00       	mov    0x0,%eax
+  fb:	89 04 24             	mov    %eax,(%esp)
+  fe:	e8 fc ff ff ff       	call   ff &lt;freeArray+0xf&gt;
+ 103:	c9                   	leave  
+ 104:	c3                   	ret    
+</pre>
+	</p>
+      </strong>        
+    </li>
+
+    <li>(5 Points) It is rather inelegant for both <code>p1.c</code> and
+        <code>p2.c</code> to have the code:
+<pre>//  PURPOSE:  To hold the length of C-string 'line'.
+#define	MAX_LINE	256
+</pre>
+
+        because if we decide to make a change we have to remember to change all .c files.
+        Suggest a more elegant solution, one that C encourages.
+      <strong>
+	<p>
+	  Use a header file.
+	</p>
+      </strong>
+    </li>
+    </ol>
+    
+  </body>
+</html>

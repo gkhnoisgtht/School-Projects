@@ -1,0 +1,64 @@
+Example for: http://localhost:2540/elliott/dog.txt from firefox browser
+
+GET /elliott/dog.txt HTTP/1.1
+Host: localhost:2540
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+
+----------------------------------------------------------
+Example for: http://localhost:2540/elliott/cat.html from firefox browser
+
+GET /elliott/cat.html HTTP/1.1
+Host: localhost:2540
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+
+----------------------------------------------------------
+Full session
+----------------------------------------------------------
+Example for: http://condor.depaul.edu/elliott/cat.html from firefox browser
+
+GET /elliott/cat.html HTTP/1.1
+Host: condor.depaul.edu
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+
+HTTP/1.1 200 OK
+Date: Sun, 11 May 2014 19:46:36 GMT
+Server: Apache/2.2.3 (Red Hat)
+Last-Modified: Mon, 05 Oct 2009 20:35:03 GMT
+Etag: "19fe2-78-475360c5dcbc0"
+Accept-Ranges: bytes
+Content-Length: 120
+Content-Type: text/html
+Connection: close
+----------------------------------------------------------
+Example for: http://condor.depaul.edu/elliott/dog.txt  from firefox browser
+
+GET /elliott/dog.txt HTTP/1.1
+Host: condor.depaul.edu
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+
+HTTP/1.1 200 OK
+Date: Sun, 11 May 2014 19:46:44 GMT
+Server: Apache/2.2.3 (Red Hat)
+Last-Modified: Fri, 16 Sep 2005 18:08:50 GMT
+Etag: "1497b-2f-400e77c517080"
+Accept-Ranges: bytes
+Content-Length: 47
+Content-Type: text/plain
+Connection: close
+----------------------------------------------------------

@@ -1,0 +1,69 @@
+run:
+Starting Web Server
+// Firefox request
+GET / HTTP/1.1
+// webserver response minus html and pictures
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:01 EDT 2014
+Server:MyWebserver
+Content-Type: text/html
+Content-Length: 442
+
+
+GET /favicon.ico HTTP/1.1
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:01 EDT 2014
+Server:MyWebserver
+Content-Type: image/x-icon
+Content-Length: 116288
+
+
+GET /nbproject HTTP/1.1
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:08 EDT 2014
+Server:MyWebserver
+Content-Type: text/html
+Content-Length: 162
+
+
+GET /favicon.ico HTTP/1.1
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:08 EDT 2014
+Server:MyWebserver
+Content-Type: image/x-icon
+Content-Length: 116288
+
+
+GET /www HTTP/1.1
+GET /favicon.ico HTTP/1.1
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:11 EDT 2014
+Server:MyWebserver
+Content-Type: image/x-icon
+Content-Length: 116288
+
+
+GET /img HTTP/1.1
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:16 EDT 2014
+Server:MyWebserver
+Content-Type: text/html
+Content-Length: 206
+
+
+GET /favicon.ico HTTP/1.1
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:16 EDT 2014
+Server:MyWebserver
+Content-Type: image/x-icon
+Content-Length: 116288
+
+
+GET /img/background.jpg HTTP/1.1
+HTTP/1.1 200 OK
+Date: Sun May 11 16:19:18 EDT 2014
+Server:MyWebserver
+Content-Type: image/jpeg
+Content-Length: 124717
+
+

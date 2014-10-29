@@ -1,0 +1,24 @@
+// server
+Starting Admin Session Thread
+Starting Session Threads
+Launching new admin client connections...
+Launching new client connection....
+Launching new client connection....
+Launching new client connection....
+
+
+
+// client
+run:
+Please type your name:Daniel
+Press enter for a joke or proverb, type quit to exit:
+Please enter numbers to sum: 20 20 20
+Your sum is: 60
+Please enter numbers to sum: 30 30 30
+Your sum is: 90
+Please enter numbers to sum: 50 50 50
+Your sum is: 150
+Please enter numbers to sum: 30 30 30 30 30 30
+Your sum is: 180
+A. So Daniel what did the 0 say to the 8? Nice Belt!
+Press enter for a joke or proverb, type quit to exit:

@@ -1,0 +1,42 @@
+-- Lisptutor Jr ID: gkhnoisgtht --
+
+-- Remove Player --
+CG-USER(17): (defun remove-player (fouls minutes)
+              (cond ((= fouls 5) t)
+                    ((and (= fouls 4)(>= minutes 5)) t)
+                    ((and (>= fouls 3)(>= minutes 15)) t)
+                    ((and (>= fouls 2)(>= minutes 28)) t)))
+REMOVE-PLAYER
+CG-USER(18): (remove-player 4 2)                        
+NIL
+CG-USER(19): (remove-player 3 30)
+                            
+T
+CG-USER(20): 
+CG-USER(20): (remove-player 2 20)
+NIL
+CG-USER(21): (remove-player 2 30)
+T
+CG-USER(22): (remove-player 3 20)
+T
+
+-- Leap Year --
+CG-USER(32): (defun leap-yearp (year)
+               (if (= (mod year 100) 0)
+                   (if (= (mod year 400) 0)
+                       t
+                     nil)
+                 (if (= (mod year 4) 0)
+                     t
+                   nil)))
+LEAP-YEARP
+CG-USER(33): (leap-yearp 1996)
+T
+CG-USER(34): (leap-yearp 1995)
+                         
+NIL
+CG-USER(35): 
+CG-USER(35): (leap-yearp 1990)
+NIL
+CG-USER(36): (leap-yearp 2000)
+T
